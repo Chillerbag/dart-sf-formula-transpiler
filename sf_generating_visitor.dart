@@ -10,6 +10,16 @@ import 'package:analyzer/dart/ast/visitor.dart';
 // we also need to know, that outside of the annotaitonImpl, we only want to start building
 // for what is in the BlockFunctionBodyImpl or BlockImpl.
 
+// also need to keep track of if we are insde the if statement, so we can form else statements
+// in the SF function.
+
+// also need to kknow if we're in MethodInvocationImpl or whatever the function one is,
+// as well as what we are calling on and the method name, so we can for example, turn productType.contains into CONTAINS()...
+// at a certain point, gotta wonder if we need a custom AST.
+
+// TODO: how do we know we are inside an IfStatementImpl ? i guess the function does, and
+// can pass that into its children. yeah thats right actually.
+// we does else go? // else is a child of if, so we can visit it and build.
 // note, it seems the NamedTypeImpl is bugged. Only prints String. May submit PR
 
 // TODO: Dart says we should NOT rely on the toString or toSource. What can we do instead?
