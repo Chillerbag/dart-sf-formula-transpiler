@@ -46,6 +46,8 @@ main() {
 
 // build ast nodes for sf formulas
 // build recursiveastvistor postorder depth first that reutnrs ast node s
+// when we enter a node that has the sf annotation, make sure we know as we recurse,
+// so we can pass the node to replace. 
 // make sure we except and kill recursion if we find a node that we dont support. s
 // make visit methods return ast nodes, and call the accepts of relevant children.
 // no more calling visitChildren
