@@ -1,5 +1,6 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/syntactic_entity.dart';
+import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 
 // so, we need to know where we are when walking the tree .
@@ -31,44 +32,34 @@ import 'package:analyzer/dart/ast/visitor.dart';
 // children are of the same hierarchy here, or alternatively, because its part of the formalParameterList node.
 // need to investigate further.
 
+// TODO change string typechecks to actual
 class SfGeneratingVisitor<SfNode> extends GeneralizingAstVisitor {
   Map<String, String> sfNameToVariableName = {};
-  String? recordName;
-  ({String sfName, String? dartName})? tempSfToDartMapping;
-
-  bool inSfFieldAnnotation = false;
+  String? fileTitle;
 
   @override
   visitNode(AstNode node) {
-    print("NODETYPE: ${node.runtimeType}");
+    // skip string literal of imports.
+    if (node is ImportDirective) {
+      return;
+    }
+    print("NODETYPE: ${node.runtimeType}:, NODESTRING: ${node.toString()}");
     super.visitNode(node);
   }
 
   @override
   visitSimpleIdentifier(SimpleIdentifier node) {
-    if (node.toSource() == 'SfFieldAnnotation') {
-      print('here1');
-      print(inSfFieldAnnotation);
-      if (inSfFieldAnnotation) {
-        print('are we here?');
-        // we must be in the recordName, and must already have an sfname.
-        recordName = tempSfToDartMapping!.sfName;
-        tempSfToDartMapping = null;
-      }
-      inSfFieldAnnotation = true;
-    }
     // TODO: implement visitSimpleIdentifier
     return super.visitSimpleIdentifier(node);
   }
 
+  // TODO moe this to functionDeclarationsImpl
   @override
   visitSimpleStringLiteral(SimpleStringLiteral node) {
-    if (inSfFieldAnnotation) {
-      // TODO handle the error case here
-      if (tempSfToDartMapping == null && inSfFieldAnnotation) {
-        print('setting temp...');
-        tempSfToDartMapping = (sfName: node.toString(), dartName: null);
-      }
+    // TODO handle the error case here
+    if (fileTitle == null) {
+      print('setting filename...');
+      fileTitle = node.toString();
     }
     // TODO: implement visitSimpleStringLiteral
     return super.visitSimpleStringLiteral(node);
@@ -79,21 +70,36 @@ class SfGeneratingVisitor<SfNode> extends GeneralizingAstVisitor {
     // TODO kill for loop, we can use name.
     print('formal param');
     print(node.name);
-    for (SyntacticEntity childNode in node.childEntities) {
-      if (childNode.runtimeType.toString() == 'StringTokenImpl' &&
-          inSfFieldAnnotation &&
-          tempSfToDartMapping != null) {
-        print('will set to false');
-        // TODO record is obvs pointless here
-        tempSfToDartMapping = (
-          sfName: tempSfToDartMapping!.sfName,
-          dartName: node.name.toString(),
-        );
-        sfNameToVariableName[tempSfToDartMapping!.sfName] =
-            tempSfToDartMapping!.dartName!;
-        inSfFieldAnnotation = false;
-        tempSfToDartMapping = null;
-      }
+
+    // the problem is we are parsing this early to get the token at the end of the formal parameter
+    // however we need to visit the annotation first. A solution would be:
+    // check if the formalParameterListImpl has an annotation, and if it does, then mess with the visiting order by
+    // calling accept on the nodes etc.
+
+    // alternatively, we can try and add these nodes to some kind of queue to deal with later.
+
+    // or, we assume the first time we hit sfAnnotation, that is the title (for this function)
+    // and dont do the inSfFieldAnnotation setting.
+    // that seems to make the most sense at this stage.
+
+    switch (node.childEntities) {
+      case [SyntacticEntity first, SyntacticEntity _, SyntacticEntity third]:
+        if (first.runtimeType.toString() != 'AnnotationImpl') {
+          // raise unnanotated error
+        } else {
+          // extract the simpleStringLiteral ?
+          // eg call visitor recursively down til when we get the SimpleStirngLiteralImpl.
+          // this means we need to define the behaviour for annotationImpl to desc its children
+          // until it reaches a SimpleStringLiteralIml
+          print('PRITING ANNOTATION STRING');
+          //TODO should no longer visit nodesvisitied here
+          String? sfVal = visitAndFindLiteralForAnnotation(node, []);
+          print(third.runtimeType);
+          // now we can just add the record here!
+          // and first annotation is just the title of the file.
+          // TODO handle sfVal being null here
+          sfNameToVariableName[third.toString()] = sfVal!;
+        }
     }
     return super.visitRegularFormalParameter(node);
   }
@@ -106,5 +112,28 @@ class SfGeneratingVisitor<SfNode> extends GeneralizingAstVisitor {
       // add else node to the sf tree
     }
     return super.visitIfStatement(node);
+  }
+
+  // TODO optimise by removing tokens from the child list, wastes an iteration. current thing im not sure type is right
+  // this is recursive
+  String? visitAndFindLiteralForAnnotation(
+    SyntacticEntity node,
+    List<SyntacticEntity> remainingNodes,
+  ) {
+    if (node is AstNode) {
+      remainingNodes.addAll(node.childEntities);
+    }
+    remainingNodes = remainingNodes.where((e) => (e is! Token)).toList();
+
+    if (node.runtimeType.toString() == 'SimpleStringLiteralImpl') {
+      return node.toString();
+    }
+    while (remainingNodes.length != 0) {
+      return visitAndFindLiteralForAnnotation(
+        remainingNodes.removeAt(0),
+        remainingNodes,
+      );
+    }
+    return null;
   }
 }
