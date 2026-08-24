@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/syntactic_entity.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 
 // so, we need to know where we are when walking the tree .
@@ -26,14 +27,84 @@ import 'package:analyzer/dart/ast/visitor.dart';
 
 // if passing the values through the recursion becomes too hard, then lets do multiple loops.
 
+// 24-08 progress - we are hitting the annotation after the formal param... probably because the node
+// children are of the same hierarchy here, or alternatively, because its part of the formalParameterList node.
+// need to investigate further.
+
 class SfGeneratingVisitor<SfNode> extends GeneralizingAstVisitor {
+  Map<String, String> sfNameToVariableName = {};
+  String? recordName;
+  ({String sfName, String? dartName})? tempSfToDartMapping;
+
+  bool inSfFieldAnnotation = false;
+
   @override
   visitNode(AstNode node) {
     print("NODETYPE: ${node.runtimeType}");
-    print(
-      "Visiting node that begins at ${node.beginToken.type}, and ends at ${node.endToken.type} String is: ${node.toSource()}, Length is ${node.length}",
-    );
-    print('\n');
     super.visitNode(node);
+  }
+
+  @override
+  visitSimpleIdentifier(SimpleIdentifier node) {
+    if (node.toSource() == 'SfFieldAnnotation') {
+      print('here1');
+      print(inSfFieldAnnotation);
+      if (inSfFieldAnnotation) {
+        print('are we here?');
+        // we must be in the recordName, and must already have an sfname.
+        recordName = tempSfToDartMapping!.sfName;
+        tempSfToDartMapping = null;
+      }
+      inSfFieldAnnotation = true;
+    }
+    // TODO: implement visitSimpleIdentifier
+    return super.visitSimpleIdentifier(node);
+  }
+
+  @override
+  visitSimpleStringLiteral(SimpleStringLiteral node) {
+    if (inSfFieldAnnotation) {
+      // TODO handle the error case here
+      if (tempSfToDartMapping == null && inSfFieldAnnotation) {
+        print('setting temp...');
+        tempSfToDartMapping = (sfName: node.toString(), dartName: null);
+      }
+    }
+    // TODO: implement visitSimpleStringLiteral
+    return super.visitSimpleStringLiteral(node);
+  }
+
+  @override
+  visitRegularFormalParameter(RegularFormalParameter node) {
+    // TODO kill for loop, we can use name.
+    print('formal param');
+    print(node.name);
+    for (SyntacticEntity childNode in node.childEntities) {
+      if (childNode.runtimeType.toString() == 'StringTokenImpl' &&
+          inSfFieldAnnotation &&
+          tempSfToDartMapping != null) {
+        print('will set to false');
+        // TODO record is obvs pointless here
+        tempSfToDartMapping = (
+          sfName: tempSfToDartMapping!.sfName,
+          dartName: node.name.toString(),
+        );
+        sfNameToVariableName[tempSfToDartMapping!.sfName] =
+            tempSfToDartMapping!.dartName!;
+        inSfFieldAnnotation = false;
+        tempSfToDartMapping = null;
+      }
+    }
+    return super.visitRegularFormalParameter(node);
+  }
+
+  @override
+  visitIfStatement(IfStatement node) {
+    // the list of nodes attached here will be important.
+    // since one will be condition, true, and then else.
+    if (node.elseStatement != null) {
+      // add else node to the sf tree
+    }
+    return super.visitIfStatement(node);
   }
 }

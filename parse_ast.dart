@@ -34,7 +34,10 @@ void parseDartAst({List<String>? files}) {
     // print(parsed.unit.beginToken.type);
     // print(parsed.unit.beginToken);
     // print(parsed.content);
-    parsed.unit.visitChildren(SfGeneratingVisitor());
+    SfGeneratingVisitor visitor = SfGeneratingVisitor();
+    parsed.unit.visitChildren(visitor);
+    print('recordName: ${visitor.recordName}');
+    print('mapping: ${visitor.sfNameToVariableName}');
     print('parsed!');
   }
 }
